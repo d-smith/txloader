@@ -1,0 +1,38 @@
+# Maven build output
+target/
+
+# Java compiled files
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven wrapper (if not intentionally committed)
+.mvn/wrapper/maven-wrapper.jar
+
+# SQLite database files
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE files
+.idea/
+*.iml
+.eclipse/
+.settings/
+.project
+.classpath
+*.iws
+*.ipr
+nbproject/
+nb-configuration.xml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Logs
+*.log
