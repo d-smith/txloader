@@ -5,7 +5,11 @@ import com.txloader.model.RawTransaction;
 import java.util.List;
 
 /**
- * Usage: CsvProducerApp <csv-file> [<csv-file> ...] [--nats-url <url>] [--subject <subject>] [--stream <name>]
+ * Usage: CsvProducerApp --account <account> <csv-file> [<csv-file> ...]
+ *                       [--nats-url <url>] [--subject <subject>] [--stream <name>]
+ *
+ * Required:
+ *   --account   account identifier applied to every transaction row
  *
  * Defaults:
  *   --nats-url  nats://localhost:4222
@@ -18,6 +22,7 @@ public class CsvProducerApp {
         String natsUrl = "nats://localhost:4222";
         String subject = "txns.raw";
         String streamName = "TRANSACTIONS";
+        String account = null;
         java.util.List<String> files = new java.util.ArrayList<>();
 
         for (int i = 0; i < args.length; i++) {
@@ -25,6 +30,7 @@ public class CsvProducerApp {
                 case "--nats-url" -> natsUrl = args[++i];
                 case "--subject"  -> subject  = args[++i];
                 case "--stream"   -> streamName = args[++i];
+                case "--account"  -> account = args[++i];
                 case "--help"     -> { printUsage(); return; }
                 default           -> files.add(args[i]);
             }
@@ -36,13 +42,19 @@ public class CsvProducerApp {
             System.exit(1);
         }
 
+        if (account == null) {
+            System.err.println("Error: --account is required.");
+            printUsage();
+            System.exit(1);
+        }
+
         NatsConfig config = new NatsConfig(natsUrl, subject, streamName);
         CsvReader reader = new CsvReader();
 
         try (TransactionPublisher publisher = new TransactionPublisher(config)) {
             for (String file : files) {
                 System.out.printf("Reading %s%n", file);
-                List<RawTransaction> transactions = reader.read(file);
+                List<RawTransaction> transactions = reader.read(file, account);
                 for (RawTransaction txn : transactions) {
                     publisher.publish(txn);
                 }
@@ -52,7 +64,7 @@ public class CsvProducerApp {
     }
 
     private static void printUsage() {
-        System.out.println("Usage: CsvProducerApp <csv-file> [<csv-file> ...]");
+        System.out.println("Usage: CsvProducerApp --account <account> <csv-file> [<csv-file> ...]");
         System.out.println("       [--nats-url <url>] [--subject <subject>] [--stream <name>]");
     }
 }
