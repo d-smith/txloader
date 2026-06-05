@@ -8,6 +8,8 @@ import io.nats.client.Message;
 import io.nats.client.Nats;
 import io.nats.client.Options;
 import io.nats.client.PullSubscribeOptions;
+import io.nats.client.api.StreamConfiguration;
+import io.nats.client.api.StorageType;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,19 @@ public class NatsTransactionSource extends RichSourceFunction<RawTransaction> {
         mapper = new ObjectMapper();
         Options options = Options.builder().server(config.getServerUrl()).build();
         connection = Nats.connect(options);
+
+        // Ensure the stream exists — create it if not, no-op if already present
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                .name(config.getStreamName())
+                .subjects(config.getSubject())
+                .storageType(StorageType.Memory)
+                .build();
+        try {
+            connection.jetStreamManagement().addStream(streamConfig);
+            LOG.info("Created NATS stream '{}'", config.getStreamName());
+        } catch (Exception e) {
+            LOG.info("NATS stream '{}' already exists", config.getStreamName());
+        }
 
         PullSubscribeOptions pullOptions = PullSubscribeOptions.builder()
                 .stream(config.getStreamName())

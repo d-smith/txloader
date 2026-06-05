@@ -27,14 +27,26 @@
             <groupId>io.nats</groupId>
             <artifactId>jnats</artifactId>
         </dependency>
-        <!-- Flink deps are provided — supplied by the cluster/local runner at runtime -->
+        <!-- Flink deps are compile scope so they are shaded into the fat JAR for the embedded mini-cluster -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-streaming-java</artifactId>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-clients</artifactId>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-runtime-web</artifactId>
+            <scope>compile</scope>
+        </dependency>
+        <!-- slf4j-simple shaded in to provide a logging binding for the embedded mini-cluster -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
         </dependency>
         <!-- sqlite-jdbc shaded in because the Flink cluster does not provide it -->
         <dependency>

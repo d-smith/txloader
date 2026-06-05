@@ -2,11 +2,13 @@ package com.txloader.processor;
 
 import com.txloader.model.ClassifiedTransaction;
 import com.txloader.model.RawTransaction;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.RestOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
 /**
  * Usage: FlinkProcessorApp [--nats-url <url>] [--subject <subject>] [--stream <name>]
- *                          [--consumer <name>] [--db <path>]
+ *                          [--consumer <name>] [--db <path>] [--web-port <port>]
  *
  * Defaults:
  *   --nats-url  nats://localhost:4222
@@ -14,6 +16,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
  *   --stream    TRANSACTIONS
  *   --consumer  flink-processor
  *   --db        transactions.db
+ *   --web-port  8081
  */
 public class FlinkProcessorApp {
 
@@ -23,6 +26,7 @@ public class FlinkProcessorApp {
         String streamName = "TRANSACTIONS";
         String consumer   = "flink-processor";
         String dbPath     = "transactions.db";
+        int    webPort    = 8081;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -31,12 +35,15 @@ public class FlinkProcessorApp {
                 case "--stream"    -> streamName = args[++i];
                 case "--consumer"  -> consumer   = args[++i];
                 case "--db"        -> dbPath      = args[++i];
+                case "--web-port"  -> webPort     = Integer.parseInt(args[++i]);
             }
         }
 
         NatsConfig natsConfig = new NatsConfig(natsUrl, subject, streamName, consumer);
 
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        Configuration conf = new Configuration();
+        conf.set(RestOptions.PORT, webPort);
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
         env.setParallelism(1);
 
         env.addSource(new NatsTransactionSource(natsConfig))

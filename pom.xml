@@ -27,6 +27,7 @@
         <flink.version>1.19.1</flink.version>
         <sqlite-jdbc.version>3.46.0.0</sqlite-jdbc.version>
         <lombok.version>1.18.34</lombok.version>
+        <slf4j.version>1.7.36</slf4j.version>
         <maven-shade-plugin.version>3.6.0</maven-shade-plugin.version>
     </properties>
 
@@ -73,6 +74,12 @@
                 <version>${flink.version}</version>
                 <scope>provided</scope>
             </dependency>
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-runtime-web</artifactId>
+                <version>${flink.version}</version>
+                <scope>provided</scope>
+            </dependency>
 
             <!-- SQLite -->
             <dependency>
@@ -87,6 +94,13 @@
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
                 <scope>provided</scope>
+            </dependency>
+
+            <!-- SLF4J -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-simple</artifactId>
+                <version>${slf4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
