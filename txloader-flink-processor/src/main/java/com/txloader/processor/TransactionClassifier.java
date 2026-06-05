@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -99,11 +100,25 @@ public class TransactionClassifier extends RichMapFunction<String[], ClassifiedT
                 if (rs.next()) {
                     int id = rs.getInt("id");
                     accountCache.put(accountCode, id);
-                    return id;fir
+                    return id;
                 }
             }
         }
-        LOG.warn("Account code '{}' not found in accounts table — using accountId=0", accountCode);
+        try (PreparedStatement insert = dbConnection.prepareStatement(
+                "INSERT INTO accounts (name, type) VALUES (?, 'Unknown')",
+                Statement.RETURN_GENERATED_KEYS)) {
+            insert.setString(1, accountCode);
+            insert.executeUpdate();
+            try (ResultSet keys = insert.getGeneratedKeys()) {
+                if (keys.next()) {
+                    int id = keys.getInt(1);
+                    accountCache.put(accountCode, id);
+                    LOG.info("Auto-inserted account '{}' with id={}", accountCode, id);
+                    return id;
+                }
+            }
+        }
+        LOG.warn("Failed to retrieve generated key for account '{}', using accountId=0", accountCode);
         return 0;
     }
 
