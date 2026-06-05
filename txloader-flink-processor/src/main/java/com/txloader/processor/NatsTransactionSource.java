@@ -9,11 +9,15 @@ import io.nats.client.Nats;
 import io.nats.client.Options;
 import io.nats.client.PullSubscribeOptions;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.List;
 
 public class NatsTransactionSource extends RichSourceFunction<RawTransaction> {
+
+    private static final Logger LOG = LoggerFactory.getLogger(NatsTransactionSource.class);
 
     private final NatsConfig config;
     private volatile boolean running = true;
@@ -37,6 +41,8 @@ public class NatsTransactionSource extends RichSourceFunction<RawTransaction> {
                 .durable(config.getConsumerName())
                 .build();
         subscription = connection.jetStream().subscribe(config.getSubject(), pullOptions);
+        LOG.info("Connected to NATS at {} — stream={}, subject={}, consumer={}",
+                config.getServerUrl(), config.getStreamName(), config.getSubject(), config.getConsumerName());
     }
 
     @Override
@@ -45,6 +51,7 @@ public class NatsTransactionSource extends RichSourceFunction<RawTransaction> {
             List<Message> messages = subscription.fetch(100, Duration.ofMillis(500));
             for (Message msg : messages) {
                 RawTransaction txn = mapper.readValue(msg.getData(), RawTransaction.class);
+                LOG.debug("Ingested: {}", txn);
                 synchronized (ctx.getCheckpointLock()) {
                     ctx.collect(txn);
                 }
@@ -55,6 +62,7 @@ public class NatsTransactionSource extends RichSourceFunction<RawTransaction> {
 
     @Override
     public void cancel() {
+        LOG.info("NatsTransactionSource cancelled");
         running = false;
     }
 

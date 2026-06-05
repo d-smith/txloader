@@ -2,6 +2,8 @@ package com.txloader.processor;
 
 import com.txloader.model.RawTransaction;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -17,6 +19,8 @@ import java.util.Locale;
  */
 public class TransactionNormalizer implements MapFunction<RawTransaction, String[]> {
 
+    private static final Logger LOG = LoggerFactory.getLogger(TransactionNormalizer.class);
+
     // Handles M/d/yyyy and MM/dd/yyyy formats from the source CSV
     private static final DateTimeFormatter INPUT_DATE_FORMAT = new DateTimeFormatterBuilder()
             .appendOptional(DateTimeFormatter.ofPattern("M/d/yyyy"))
@@ -29,6 +33,8 @@ public class TransactionNormalizer implements MapFunction<RawTransaction, String
     public String[] map(RawTransaction raw) {
         String isoDate = normalizeDate(raw.getDate());
         String merchant = extractMerchant(raw.getDescription());
+        LOG.debug("Normalized: rawDate={} -> isoDate={}, desc='{}' -> merchant={}, amount={}",
+                raw.getDate(), isoDate, raw.getDescription(), merchant, raw.getAmount());
         return new String[]{isoDate, merchant, raw.getAmount(), raw.getDescription(), raw.getAccount()};
     }
 
@@ -37,7 +43,7 @@ public class TransactionNormalizer implements MapFunction<RawTransaction, String
             LocalDate date = LocalDate.parse(rawDate.trim(), INPUT_DATE_FORMAT);
             return date.format(OUTPUT_DATE_FORMAT);
         } catch (Exception e) {
-            // Return as-is if already normalized or unparseable
+            LOG.warn("Could not parse date '{}', using as-is", rawDate.trim());
             return rawDate.trim();
         }
     }

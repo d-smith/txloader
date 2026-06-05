@@ -3,6 +3,8 @@ package com.txloader.processor;
 import com.txloader.model.ClassifiedTransaction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -18,6 +20,8 @@ import java.util.Map;
  * Input array: [isoDate, merchant, amount, rawDesc, accountCode]
  */
 public class TransactionClassifier extends RichMapFunction<String[], ClassifiedTransaction> {
+
+    private static final Logger LOG = LoggerFactory.getLogger(TransactionClassifier.class);
 
     private static final Map<String, String> CATEGORY_RULES = new HashMap<>();
 
@@ -55,6 +59,7 @@ public class TransactionClassifier extends RichMapFunction<String[], ClassifiedT
     public void open(Configuration parameters) throws Exception {
         dbConnection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
         accountCache = new HashMap<>();
+        LOG.info("TransactionClassifier opened DB connection: {}", dbPath);
     }
 
     @Override
@@ -68,6 +73,8 @@ public class TransactionClassifier extends RichMapFunction<String[], ClassifiedT
         String category = classify(merchant);
         int accountId   = resolveAccountId(accountCode);
 
+        LOG.debug("Classified: merchant='{}' -> category='{}', account='{}' -> accountId={}",
+                merchant, category, accountCode, accountId);
         return new ClassifiedTransaction(isoDate, merchant, amount, category, accountId, rawDesc);
     }
 
@@ -77,6 +84,7 @@ public class TransactionClassifier extends RichMapFunction<String[], ClassifiedT
                 return rule.getValue();
             }
         }
+        LOG.warn("No category rule matched merchant '{}'", merchant);
         return "Uncategorized";
     }
 
@@ -91,11 +99,11 @@ public class TransactionClassifier extends RichMapFunction<String[], ClassifiedT
                 if (rs.next()) {
                     int id = rs.getInt("id");
                     accountCache.put(accountCode, id);
-                    return id;
+                    return id;fir
                 }
             }
         }
-        // Account not found — return 0 to signal an unresolved account
+        LOG.warn("Account code '{}' not found in accounts table — using accountId=0", accountCode);
         return 0;
     }
 

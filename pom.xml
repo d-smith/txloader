@@ -26,6 +26,7 @@
         <commons-csv.version>1.11.0</commons-csv.version>
         <flink.version>1.19.1</flink.version>
         <sqlite-jdbc.version>3.46.0.0</sqlite-jdbc.version>
+        <lombok.version>1.18.34</lombok.version>
         <maven-shade-plugin.version>3.6.0</maven-shade-plugin.version>
     </properties>
 
@@ -78,6 +79,14 @@
                 <groupId>org.xerial</groupId>
                 <artifactId>sqlite-jdbc</artifactId>
                 <version>${sqlite-jdbc.version}</version>
+            </dependency>
+
+            <!-- Lombok -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+                <scope>provided</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
