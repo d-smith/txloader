@@ -6,12 +6,16 @@ import org.apache.flink.configuration.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -19,56 +23,62 @@ import java.util.Map;
  * the account short-code to an account_id via the SQLite accounts table.
  *
  * Input array: [isoDate, merchant, amount, rawDesc, accountCode]
+ *
+ * Category rules are loaded from a CSV file (columns: key, category).
+ * When rulesPath is null the bundled category_rules.csv resource is used.
  */
 public class TransactionClassifier extends RichMapFunction<String[], ClassifiedTransaction> {
 
     private static final Logger LOG = LoggerFactory.getLogger(TransactionClassifier.class);
 
-    private static final Map<String, String> CATEGORY_RULES = new HashMap<>();
-
-    static {
-        CATEGORY_RULES.put("STARBUCKS", "Food & Drink");
-        CATEGORY_RULES.put("MCDONALD", "Food & Drink");
-        CATEGORY_RULES.put("CHIPOTLE", "Food & Drink");
-        CATEGORY_RULES.put("DOORDASH", "Food & Drink");
-        CATEGORY_RULES.put("UBER EATS", "Food & Drink");
-        CATEGORY_RULES.put("WHOLE FOODS", "Groceries");
-        CATEGORY_RULES.put("TRADER JOE", "Groceries");
-        CATEGORY_RULES.put("KROGER", "Groceries");
-        CATEGORY_RULES.put("AMAZON", "Shopping");
-        CATEGORY_RULES.put("WALMART", "Shopping");
-        CATEGORY_RULES.put("TARGET", "Shopping");
-        CATEGORY_RULES.put("NETFLIX", "Entertainment");
-        CATEGORY_RULES.put("SPOTIFY", "Entertainment");
-        CATEGORY_RULES.put("HULU", "Entertainment");
-        CATEGORY_RULES.put("SHELL", "Gas & Fuel");
-        CATEGORY_RULES.put("CHEVRON", "Gas & Fuel");
-        CATEGORY_RULES.put("EXXON", "Gas & Fuel");
-        CATEGORY_RULES.put("UBER", "Transportation");
-        CATEGORY_RULES.put("LYFT", "Transportation");
-    }
-
     private final String dbPath;
+    private final String rulesPath;
+
     private transient Connection dbConnection;
     private transient Map<String, Integer> accountCache;
+    private transient Map<String, String> categoryRules;
 
-    public TransactionClassifier(String dbPath) {
+    public TransactionClassifier(String dbPath, String rulesPath) {
         this.dbPath = dbPath;
+        this.rulesPath = rulesPath;
     }
 
     @Override
     public void open(Configuration parameters) throws Exception {
         dbConnection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-        accountCache = new HashMap<>();
-        LOG.info("TransactionClassifier opened DB connection: {}", dbPath);
+        accountCache = new LinkedHashMap<>();
+        categoryRules = loadRules();
+        LOG.info("TransactionClassifier opened DB connection: {}, loaded {} category rules from {}",
+                dbPath, categoryRules.size(), rulesPath == null ? "built-in category_rules.csv" : rulesPath);
+    }
+
+    private Map<String, String> loadRules() throws Exception {
+        Reader reader = rulesPath == null
+                ? new InputStreamReader(TransactionClassifier.class.getResourceAsStream("/category_rules.csv"))
+                : new FileReader(rulesPath);
+
+        Map<String, String> rules = new LinkedHashMap<>();
+        try (BufferedReader br = new BufferedReader(reader)) {
+            br.readLine(); // skip header
+            String line;
+            while ((line = br.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                String[] parts = line.split(",", 2);
+                if (parts.length == 2) {
+                    rules.put(parts[0].trim(), parts[1].trim());
+                }
+            }
+        }
+        return rules;
     }
 
     @Override
     public ClassifiedTransaction map(String[] fields) throws Exception {
-        String isoDate    = fields[0];
-        String merchant   = fields[1];
-        String amount     = fields[2];
-        String rawDesc    = fields[3];
+        String isoDate     = fields[0];
+        String merchant    = fields[1];
+        String amount      = fields[2];
+        String rawDesc     = fields[3];
         String accountCode = fields[4];
 
         String category = classify(merchant);
@@ -80,7 +90,7 @@ public class TransactionClassifier extends RichMapFunction<String[], ClassifiedT
     }
 
     private String classify(String merchant) {
-        for (Map.Entry<String, String> rule : CATEGORY_RULES.entrySet()) {
+        for (Map.Entry<String, String> rule : categoryRules.entrySet()) {
             if (merchant.contains(rule.getKey())) {
                 return rule.getValue();
             }

@@ -229,3 +229,14 @@ sqlite3 transactions.db "SELECT category, COUNT(*) AS n, ROUND(SUM(amount),2) AS
 # Accounts that were auto-created by the processor
 sqlite3 transactions.db "SELECT * FROM accounts WHERE type = 'Unknown';"
 ```
+
+### Clean Up
+
+```bash
+# removes all rows but keeps the table structure:
+sqlite3 transactions.db "DELETE FROM transactions;"
+
+
+# To wipe both tables and start completely fresh:
+sqlite3 transactions.db "DELETE FROM transactions; DELETE FROM accounts;"
+```

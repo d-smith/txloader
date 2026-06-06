@@ -9,6 +9,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 /**
  * Usage: FlinkProcessorApp [--nats-url <url>] [--subject <subject>] [--stream <name>]
  *                          [--consumer <name>] [--db <path>] [--web-port <port>]
+ *                          [--rules <path>]
  *
  * Defaults:
  *   --nats-url  nats://localhost:4222
@@ -17,6 +18,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
  *   --consumer  flink-processor
  *   --db        transactions.db
  *   --web-port  8081
+ *   --rules     (built-in category_rules.csv)
  */
 public class FlinkProcessorApp {
 
@@ -26,6 +28,7 @@ public class FlinkProcessorApp {
         String streamName = "TRANSACTIONS";
         String consumer   = "flink-processor";
         String dbPath     = "transactions.db";
+        String rulesPath  = null;
         int    webPort    = 8081;
 
         for (int i = 0; i < args.length; i++) {
@@ -35,6 +38,7 @@ public class FlinkProcessorApp {
                 case "--stream"    -> streamName = args[++i];
                 case "--consumer"  -> consumer   = args[++i];
                 case "--db"        -> dbPath      = args[++i];
+                case "--rules"     -> rulesPath   = args[++i];
                 case "--web-port"  -> webPort     = Integer.parseInt(args[++i]);
             }
         }
@@ -48,7 +52,7 @@ public class FlinkProcessorApp {
 
         env.addSource(new NatsTransactionSource(natsConfig))
            .map(new TransactionNormalizer())
-           .map(new TransactionClassifier(dbPath))
+           .map(new TransactionClassifier(dbPath, rulesPath))
            .addSink(new SqliteSink(dbPath));
 
         env.execute("TX Loader Flink Processor");
