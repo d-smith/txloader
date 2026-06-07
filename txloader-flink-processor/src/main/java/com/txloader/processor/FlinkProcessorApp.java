@@ -9,16 +9,17 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 /**
  * Usage: FlinkProcessorApp [--nats-url <url>] [--subject <subject>] [--stream <name>]
  *                          [--consumer <name>] [--db <path>] [--web-port <port>]
- *                          [--rules <path>]
+ *                          [--classifier keyword] [--rules <path>]
  *
  * Defaults:
- *   --nats-url  nats://localhost:4222
- *   --subject   txns.raw
- *   --stream    TRANSACTIONS
- *   --consumer  flink-processor
- *   --db        transactions.db
- *   --web-port  8081
- *   --rules     (built-in category_rules.csv)
+ *   --nats-url    nats://localhost:4222
+ *   --subject     txns.raw
+ *   --stream      TRANSACTIONS
+ *   --consumer    flink-processor
+ *   --db          transactions.db
+ *   --web-port    8081
+ *   --classifier  keyword
+ *   --rules       (built-in category_rules.csv, applies to keyword classifier only)
  */
 public class FlinkProcessorApp {
 
@@ -28,20 +29,27 @@ public class FlinkProcessorApp {
         String streamName = "TRANSACTIONS";
         String consumer   = "flink-processor";
         String dbPath     = "transactions.db";
+        String classifier = "keyword";
         String rulesPath  = null;
         int    webPort    = 8081;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
-                case "--nats-url"  -> natsUrl    = args[++i];
-                case "--subject"   -> subject    = args[++i];
-                case "--stream"    -> streamName = args[++i];
-                case "--consumer"  -> consumer   = args[++i];
-                case "--db"        -> dbPath      = args[++i];
-                case "--rules"     -> rulesPath   = args[++i];
-                case "--web-port"  -> webPort     = Integer.parseInt(args[++i]);
+                case "--nats-url"    -> natsUrl    = args[++i];
+                case "--subject"     -> subject    = args[++i];
+                case "--stream"      -> streamName = args[++i];
+                case "--consumer"    -> consumer   = args[++i];
+                case "--db"          -> dbPath      = args[++i];
+                case "--classifier"  -> classifier  = args[++i];
+                case "--rules"       -> rulesPath   = args[++i];
+                case "--web-port"    -> webPort     = Integer.parseInt(args[++i]);
             }
         }
+
+        MerchantCategorizer categorizer = switch (classifier) {
+            case "keyword" -> new KeywordMerchantCategorizer(rulesPath);
+            default -> throw new IllegalArgumentException("Unknown classifier: " + classifier);
+        };
 
         NatsConfig natsConfig = new NatsConfig(natsUrl, subject, streamName, consumer);
 
@@ -52,7 +60,7 @@ public class FlinkProcessorApp {
 
         env.addSource(new NatsTransactionSource(natsConfig))
            .map(new TransactionNormalizer())
-           .map(new TransactionClassifier(dbPath, rulesPath))
+           .map(new TransactionClassifier(dbPath, categorizer))
            .addSink(new SqliteSink(dbPath));
 
         env.execute("TX Loader Flink Processor");
