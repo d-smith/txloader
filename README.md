@@ -157,6 +157,16 @@ This produces two fat JARs:
 - `txloader-csv-producer/target/txloader-csv-producer-1.0-SNAPSHOT.jar`
 - `txloader-flink-processor/target/txloader-flink-processor-1.0-SNAPSHOT.jar`
 
+### Initialize the Database
+
+Before running the processor for the first time, create the schema:
+
+```bash
+sqlite3 transactions.db < scripts/schema.sql
+```
+
+This is safe to re-run — both tables are created with `IF NOT EXISTS`.
+
 ### Run
 
 Start the components in this order:
@@ -240,3 +250,28 @@ sqlite3 transactions.db "DELETE FROM transactions;"
 # To wipe both tables and start completely fresh:
 sqlite3 transactions.db "DELETE FROM transactions; DELETE FROM accounts;"
 ```
+
+
+## SQLite commands
+
+SELECT name FROM sqlite_master WHERE type='table';
+
+SELECT
+        strftime('%Y-%m', date)  AS month,
+        SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END) AS total_spend,
+        SUM(CASE WHEN amount > 0 THEN ABS(amount) ELSE 0 END) AS total_credits,
+        COUNT(*)                 AS tx_count
+    FROM transactions
+    GROUP BY 1
+    ORDER BY 1 DESC;
+
+SELECT
+        category,
+        strftime('%Y-%m', date) AS month,
+        SUM(amount)             AS total,
+        COUNT(*)                AS tx_count,
+        AVG(amount)             AS avg_tx
+    FROM transactions
+    WHERE amount < 0
+    GROUP BY 1, 2
+    ORDER BY 2 ASC, 3 ASC;

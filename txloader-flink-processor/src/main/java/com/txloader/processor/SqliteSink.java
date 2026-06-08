@@ -31,34 +31,26 @@ public class SqliteSink extends RichSinkFunction<ClassifiedTransaction> {
     public void open(Configuration parameters) throws Exception {
         connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
         connection.setAutoCommit(false);
-        ensureSchema();
+        checkSchema();
         insertStmt = connection.prepareStatement(INSERT_SQL);
         count = 0;
         LOG.info("SqliteSink opened: {}", dbPath);
     }
 
-    private void ensureSchema() throws Exception {
+    private void checkSchema() throws Exception {
         try (var stmt = connection.createStatement()) {
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS accounts (
-                    id   INTEGER PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    type TEXT NOT NULL
-                )
-            """);
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS transactions (
-                    id         INTEGER PRIMARY KEY,
-                    date       DATE NOT NULL,
-                    merchant   TEXT NOT NULL,
-                    amount     REAL NOT NULL,
-                    category   TEXT,
-                    account_id INTEGER REFERENCES accounts(id),
-                    raw_desc   TEXT
-                )
-            """);
-            connection.commit();
+            var rs = stmt.executeQuery(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('accounts','transactions')"
+            );
+            if (rs.getInt(1) < 2) {
+                throw new IllegalStateException(
+                    "Database not initialized — run: sqlite3 " + dbPath + " < scripts/schema.sql"
+                );
+            }
         }
+        // Release the read transaction so TransactionClassifier's writes aren't blocked by a
+        // dangling shared lock on this connection.
+        connection.rollback();
     }
 
     @Override
