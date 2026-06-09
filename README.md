@@ -1,6 +1,6 @@
 # TX Loader - Load Transactions into SQLite
 
-This project loads transactions into SQL using a stream architecture, which is overkill for a local tool
+This project loads transactions into a database using a stream architecture, which is overkill for a local tool
 but may be appropriate for a larger entity that wants to process data in real time via a stream. We'll simulate
 a realtime feed via utilities that can read transactions from files and write them to the stream.
 
@@ -75,8 +75,40 @@ java -jar txloader-csv-producer/target/txloader-csv-producer-*.jar --account "Ch
 java -jar txloader-flink-processor/target/txloader-flink-processor-*.jar
 ```
 
-The producer accepts `--nats-url`, `--subject`, `--stream`, and `--account` flags.  
-The processor accepts `--nats-url`, `--subject`, `--stream`, `--consumer`, and `--db` flags.
+See the [Command Reference](#command-reference) below for all flags and their defaults.
+
+## Command Reference
+
+### CSV Producer
+
+```
+java -jar txloader-csv-producer-*.jar --account <name> <file> [<file> ...] [options]
+```
+
+| Flag | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `--account` | String | — | **Yes** | Account name applied to every transaction row |
+| Positional args | String(s) | — | **Yes** | One or more CSV file paths to process |
+| `--nats-url` | String | `nats://localhost:4222` | No | NATS server URL |
+| `--subject` | String | `txns.raw` | No | NATS subject to publish raw transactions to |
+| `--stream` | String | `TRANSACTIONS` | No | JetStream stream name |
+
+### Flink Processor
+
+```
+java -jar txloader-flink-processor-*.jar [options]
+```
+
+| Flag | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `--db` | String | `transactions.db` | No | Path to the SQLite database file |
+| `--nats-url` | String | `nats://localhost:4222` | No | NATS server URL |
+| `--subject` | String | `txns.raw` | No | NATS subject to consume raw transactions from |
+| `--stream` | String | `TRANSACTIONS` | No | JetStream stream name |
+| `--consumer` | String | `flink-processor` | No | JetStream consumer/durable name |
+| `--web-port` | Integer | `8081` | No | Port for the embedded Flink web UI |
+| `--classifier` | String | `keyword` | No | Merchant categorization algorithm (`keyword` is the only supported value) |
+| `--rules` | String | built-in CSV | No | Path to a custom categorization rules CSV (keyword classifier only) |
 
 ## Local Setup
 
