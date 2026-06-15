@@ -16,7 +16,7 @@ import java.util.Map;
 
 /**
  * Flink map operator that assigns a category to each transaction and resolves
- * the account short-code to an account_id via the SQLite accounts table.
+ * the account short-code to an account_id via the accounts table.
  *
  * Category assignment is delegated to a {@link MerchantCategorizer}, allowing
  * different classification strategies to be plugged in via configuration.
@@ -27,23 +27,27 @@ public class TransactionClassifier extends RichMapFunction<String[], ClassifiedT
 
     private static final Logger LOG = LoggerFactory.getLogger(TransactionClassifier.class);
 
-    private final String dbPath;
+    private final String dbUrl;
+    private final String dbUser;
+    private final String dbPassword;
     private final MerchantCategorizer categorizer;
 
     private transient Connection dbConnection;
     private transient Map<String, Integer> accountCache;
 
-    public TransactionClassifier(String dbPath, MerchantCategorizer categorizer) {
-        this.dbPath = dbPath;
+    public TransactionClassifier(String dbUrl, String dbUser, String dbPassword, MerchantCategorizer categorizer) {
+        this.dbUrl = dbUrl;
+        this.dbUser = dbUser;
+        this.dbPassword = dbPassword;
         this.categorizer = categorizer;
     }
 
     @Override
     public void open(Configuration parameters) throws Exception {
-        dbConnection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+        dbConnection = DriverManager.getConnection(dbUrl, dbUser, dbPassword);
         accountCache = new LinkedHashMap<>();
         categorizer.open();
-        LOG.info("TransactionClassifier opened: db={}", dbPath);
+        LOG.info("TransactionClassifier opened: db={}", dbUrl);
     }
 
     @Override

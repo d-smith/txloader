@@ -1,44 +1,34 @@
 """
-db.py — SQLite connection helper for tx-analyzer tools.
+db.py — PostgreSQL connection helper for tx-analyzer tools.
 
-Locates transactions.db by checking (in order):
-  1. TX_DB environment variable
-  2. transactions.db relative to CWD (works when run from project root)
-  3. Walk up from this file's location until transactions.db is found
+Locates the database using (in order):
+  1. TX_DB environment variable (libpq DSN, e.g. postgresql://localhost/txloader)
+  2. Default: postgresql://localhost/txloader
 """
 import os
-import sqlite3
-from pathlib import Path
 
-_db_path = None  # type: Path
+import psycopg
+import psycopg.rows
+
+_dsn = None  # type: str
 
 
-def _resolve() -> Path:
+def _resolve() -> str:
     if env := os.environ.get("TX_DB"):
-        return Path(env)
-    candidate = Path("transactions.db")
-    if candidate.exists():
-        return candidate
-    here = Path(__file__).resolve().parent
-    for parent in [here, *here.parents]:
-        candidate = parent / "transactions.db"
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError(
-        "Cannot find transactions.db — set TX_DB or run from the project root"
-    )
+        return env
+    return "postgresql://localhost/txloader"
 
 
 def init():
-    global _db_path
-    _db_path = _resolve()
+    global _dsn
+    _dsn = _resolve()
 
 
-def get_conn(readonly: bool = False) -> sqlite3.Connection:
-    global _db_path
-    if _db_path is None:
-        _db_path = _resolve()
-    uri = f"file:{_db_path}{'?mode=ro' if readonly else ''}"
-    conn = sqlite3.connect(uri, uri=True)
-    conn.row_factory = sqlite3.Row
+def get_conn(readonly: bool = False) -> psycopg.Connection:
+    global _dsn
+    if _dsn is None:
+        _dsn = _resolve()
+    conn = psycopg.connect(_dsn, row_factory=psycopg.rows.dict_row)
+    if readonly:
+        conn.autocommit = True
     return conn

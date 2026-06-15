@@ -31,7 +31,7 @@ def query(sql: str, params: tuple = ()) -> str:
     Returns results as JSON. Use for ad-hoc analysis.
 
     Example:
-        query("SELECT * FROM transactions WHERE merchant LIKE ? LIMIT 5", ("%amazon%",))
+        query("SELECT * FROM transactions WHERE merchant LIKE %s LIMIT 5", ("%amazon%",))
     """
     conn = db.get_conn(readonly=True)
     try:
@@ -49,7 +49,7 @@ def get_monthly_summary(year: int = None) -> str:
     year = year or datetime.now().year
     conn = db.get_conn(readonly=True)
     rows = conn.execute(
-        "SELECT * FROM monthly_summary WHERE month LIKE ?",
+        "SELECT * FROM monthly_summary WHERE month LIKE %s",
         (f"{year}%",)
     ).fetchall()
     return _json(_rows_to_dicts(rows))
@@ -63,7 +63,7 @@ def get_spending_by_category(month: str = None) -> str:
     month = month or datetime.now().strftime("%Y-%m")
     conn = db.get_conn(readonly=True)
     rows = conn.execute(
-        "SELECT * FROM category_summary WHERE month = ? ORDER BY total DESC",
+        "SELECT * FROM category_summary WHERE month = %s ORDER BY total DESC",
         (month,)
     ).fetchall()
     return _json(_rows_to_dicts(rows))
@@ -81,10 +81,10 @@ def get_top_merchants(n: int = 10, since: str = None) -> str:
     rows = conn.execute(
         """SELECT merchant, ROUND(ABS(SUM(amount)), 2) AS total_spend, COUNT(*) AS tx_count
            FROM transactions
-           WHERE date >= ? AND amount < 0
+           WHERE date >= %s AND amount < 0
            GROUP BY merchant
            ORDER BY total_spend DESC
-           LIMIT ?""",
+           LIMIT %s""",
         (since, n)
     ).fetchall()
     return _json(_rows_to_dicts(rows))
@@ -98,9 +98,9 @@ def find_transactions(keyword: str, limit: int = 20) -> str:
     rows = conn.execute(
         """SELECT t.date, t.merchant, t.amount, t.category, a.name AS account
            FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id
-           WHERE t.merchant LIKE ? OR t.raw_desc LIKE ?
+           WHERE t.merchant LIKE %s OR t.raw_desc LIKE %s
            ORDER BY t.date DESC
-           LIMIT ?""",
+           LIMIT %s""",
         (f"%{keyword}%", f"%{keyword}%", limit)
     ).fetchall()
     return _json(_rows_to_dicts(rows))
@@ -115,15 +115,15 @@ def get_recurring_charges(min_occurrences: int = 2) -> str:
     rows = conn.execute(
         """SELECT
                merchant,
-               ROUND(ABS(AVG(amount)), 2)             AS avg_amount,
-               COUNT(*)                               AS total_occurrences,
-               COUNT(DISTINCT strftime('%Y-%m', date)) AS months_seen,
-               MIN(date)                              AS first_seen,
-               MAX(date)                              AS last_seen
+               ROUND(ABS(AVG(amount)), 2)                    AS avg_amount,
+               COUNT(*)                                       AS total_occurrences,
+               COUNT(DISTINCT TO_CHAR(date, 'YYYY-MM'))       AS months_seen,
+               MIN(date)                                      AS first_seen,
+               MAX(date)                                      AS last_seen
            FROM transactions
            WHERE amount < 0
            GROUP BY merchant
-           HAVING months_seen >= ?
+           HAVING COUNT(DISTINCT TO_CHAR(date, 'YYYY-MM')) >= %s
            ORDER BY months_seen DESC, avg_amount DESC""",
         (min_occurrences,)
     ).fetchall()
@@ -139,9 +139,9 @@ def compare_months(month_a: str, month_b: str) -> str:
     rows = conn.execute(
         """WITH
                a AS (SELECT category, ABS(SUM(amount)) AS total FROM transactions
-                     WHERE strftime('%Y-%m', date) = ? AND amount < 0 GROUP BY category),
+                     WHERE TO_CHAR(date, 'YYYY-MM') = %s AND amount < 0 GROUP BY category),
                b AS (SELECT category, ABS(SUM(amount)) AS total FROM transactions
-                     WHERE strftime('%Y-%m', date) = ? AND amount < 0 GROUP BY category)
+                     WHERE TO_CHAR(date, 'YYYY-MM') = %s AND amount < 0 GROUP BY category)
            SELECT category, month_a, month_b, delta FROM (
                SELECT
                    COALESCE(a.category, b.category)              AS category,
@@ -153,7 +153,7 @@ def compare_months(month_a: str, month_b: str) -> str:
                SELECT b.category, 0.0, ROUND(b.total, 2), ROUND(b.total, 2)
                FROM b LEFT JOIN a ON a.category = b.category
                WHERE a.category IS NULL
-           )
+           ) sub
            ORDER BY ABS(delta) DESC""",
         (month_a, month_b)
     ).fetchall()
@@ -176,7 +176,7 @@ def get_large_transactions(threshold: float = 100.0, since: str = None) -> str:
     rows = conn.execute(
         """SELECT t.date, t.merchant, ABS(t.amount) AS amount, t.category, a.name AS account
            FROM transactions t LEFT JOIN accounts a ON t.account_id = a.id
-           WHERE t.amount < 0 AND ABS(t.amount) >= ? AND t.date >= ?
+           WHERE t.amount < 0 AND ABS(t.amount) >= %s AND t.date >= %s
            ORDER BY t.amount ASC""",
         (threshold, since)
     ).fetchall()

@@ -1,11 +1,11 @@
-# TX Loader - Load Transactions into SQLite
+# TX Loader - Load Transactions into PostgreSQL
 
-Loads bank/card transactions into a local SQLite database using a stream architecture. Transactions are published to a NATS JetStream topic by a CSV producer, classified and normalized by an embedded Flink processor, and written to SQLite. The stream layer is overkill for a local tool but mirrors a real-time production pipeline.
+Loads bank/card transactions into a local PostgreSQL database using a stream architecture. Transactions are published to a NATS JetStream topic by a CSV producer, classified and normalized by an embedded Flink processor, and written to PostgreSQL. The stream layer is overkill for a local tool but mirrors a real-time production pipeline.
 
 **Architecture:**  
 `Transactions => Raw Txn Stream => Transaction Classifier => Classified Txn Stream => Transaction Database`
 
-**Stack:** NATS JetStream (broker), Apache Flink embedded mini-cluster (processor), SQLite (storage).
+**Stack:** NATS JetStream (broker), Apache Flink embedded mini-cluster (processor), PostgreSQL (storage).
 
 ---
 
@@ -16,7 +16,8 @@ Loads bank/card transactions into a local SQLite database using a stream archite
 | Java 17+ | Required to run the JARs |
 | Maven 3.8+ | Required to build from source |
 | NATS Server 2.x | Must be running before either app starts |
-| SQLite CLI (optional) | Only needed to inspect the database directly |
+| PostgreSQL 14+ | Must be running; create a `txloader` database before first use |
+| psql (optional) | Only needed to inspect the database directly |
 | NATS CLI (optional) | Only needed to inspect stream state |
 
 Flink runs as an **embedded mini-cluster** inside the processor JAR — no standalone Flink installation needed.
@@ -71,14 +72,37 @@ brew install nats-io/nats-tools/nats
 # Linux — download from https://github.com/nats-io/natscli/releases
 ```
 
-### SQLite CLI (optional)
+### PostgreSQL
 
+**Docker (recommended)**
 ```bash
-# macOS
-brew install sqlite
+docker compose up -d
+```
 
-# Ubuntu / Debian
-sudo apt install sqlite3
+This starts a PostgreSQL 16 container with:
+- Host: `localhost`, Port: `5432`
+- Database: `txloader`, User: `myuser`, Password: `mypassword`
+
+Initialize the schema:
+```bash
+docker exec -i postgres-dev psql -U myuser -d txloader < scripts/schema.sql
+```
+
+**macOS**
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+**Ubuntu / Debian**
+```bash
+sudo apt install postgresql
+sudo systemctl start postgresql
+```
+
+Create the database:
+```bash
+createdb txloader
 ```
 
 ### Database Schema
@@ -86,30 +110,30 @@ sudo apt install sqlite3
 Initialize the schema before running the processor for the first time:
 
 ```bash
-sqlite3 transactions.db < scripts/schema.sql
+psql txloader < scripts/schema.sql
 ```
 
-This is safe to re-run — both tables use `IF NOT EXISTS`.
+This is safe to re-run — tables use `IF NOT EXISTS` and views use `CREATE OR REPLACE`.
 
 **`accounts`** — one row per bank/card account
 
-| column | type    | notes                               |
-|--------|---------|-------------------------------------|
-| id     | INTEGER | PK                                  |
-| name   | TEXT    | e.g. "Chase Checking", "Amex Gold" |
-| type   | TEXT    | 'checking', 'savings', or 'credit'  |
+| column | type   | notes                               |
+|--------|--------|-------------------------------------|
+| id     | SERIAL | PK                                  |
+| name   | TEXT   | e.g. "Chase Checking", "Amex Gold" |
+| type   | TEXT   | 'checking', 'savings', or 'credit'  |
 
 **`transactions`** — one row per transaction
 
-| column     | type    | notes                                                      |
-|------------|---------|------------------------------------------------------------|
-| id         | INTEGER | PK                                                         |
-| date       | DATE    | ISO format YYYY-MM-DD                                      |
-| merchant   | TEXT    | cleaned merchant name                                      |
-| amount     | REAL    | negative = money out (spend), positive = refund/credit     |
-| category   | TEXT    | assigned by classifier                                     |
-| account_id | INTEGER | FK → accounts.id                                          |
-| raw_desc   | TEXT    | original CSV description before normalization              |
+| column     | type          | notes                                                      |
+|------------|---------------|------------------------------------------------------------|
+| id         | SERIAL        | PK                                                         |
+| date       | DATE          | ISO format YYYY-MM-DD                                      |
+| merchant   | TEXT          | cleaned merchant name                                      |
+| amount     | NUMERIC(15,2) | negative = money out (spend), positive = refund/credit     |
+| category   | TEXT          | assigned by classifier                                     |
+| account_id | INTEGER       | FK → accounts.id                                          |
+| raw_desc   | TEXT          | original CSV description before normalization              |
 
 ---
 
@@ -125,7 +149,7 @@ nats-server -js
 **2. Flink processor** — start before the producer so no messages are missed
 ```bash
 java -jar txloader-flink-processor/target/txloader-flink-processor-1.0-SNAPSHOT.jar \
-  --db transactions.db
+  --db-url jdbc:postgresql://localhost:5432/txloader
 ```
 
 The Flink web UI is available at **http://localhost:8081** once the processor starts.
@@ -170,7 +194,7 @@ java -jar txloader-flink-processor-*.jar [options]
 
 | Flag | Type | Default | Required | Description |
 |------|------|---------|----------|-------------|
-| `--db` | String | `transactions.db` | No | Path to the SQLite database file |
+| `--db-url` | String | `jdbc:postgresql://localhost:5432/txloader` | No | JDBC URL for the PostgreSQL database |
 | `--nats-url` | String | `nats://localhost:4222` | No | NATS server URL |
 | `--subject` | String | `txns.raw` | No | NATS subject to consume raw transactions from |
 | `--stream` | String | `TRANSACTIONS` | No | JetStream stream name |

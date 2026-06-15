@@ -10,54 +10,55 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 
-public class SqliteSink extends RichSinkFunction<ClassifiedTransaction> {
+public class PostgresSink extends RichSinkFunction<ClassifiedTransaction> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(SqliteSink.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PostgresSink.class);
 
     private static final String INSERT_SQL =
             "INSERT INTO transactions (date, merchant, amount, category, account_id, raw_desc) " +
             "VALUES (?, ?, ?, ?, ?, ?)";
 
-    private final String dbPath;
+    private final String dbUrl;
+    private final String dbUser;
+    private final String dbPassword;
     private transient Connection connection;
     private transient PreparedStatement insertStmt;
     private transient long count;
 
-    public SqliteSink(String dbPath) {
-        this.dbPath = dbPath;
+    public PostgresSink(String dbUrl, String dbUser, String dbPassword) {
+        this.dbUrl = dbUrl;
+        this.dbUser = dbUser;
+        this.dbPassword = dbPassword;
     }
 
     @Override
     public void open(Configuration parameters) throws Exception {
-        connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+        connection = DriverManager.getConnection(dbUrl, dbUser, dbPassword);
         connection.setAutoCommit(false);
         checkSchema();
         insertStmt = connection.prepareStatement(INSERT_SQL);
         count = 0;
-        LOG.info("SqliteSink opened: {}", dbPath);
+        LOG.info("PostgresSink opened: {}", dbUrl);
     }
 
     private void checkSchema() throws Exception {
-        try (var stmt = connection.createStatement()) {
-            var rs = stmt.executeQuery(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('accounts','transactions')"
-            );
-            if (rs.getInt(1) < 2) {
+        try (var stmt = connection.createStatement();
+             var rs = stmt.executeQuery(
+                "SELECT COUNT(*) FROM information_schema.tables " +
+                "WHERE table_schema = 'public' AND table_name IN ('accounts', 'transactions')")) {
+            if (!rs.next() || rs.getInt(1) < 2) {
                 throw new IllegalStateException(
-                    "Database not initialized — run: sqlite3 " + dbPath + " < scripts/schema.sql"
+                    "Database not initialized — run: psql <dbname> < scripts/schema.sql"
                 );
             }
         }
-        // Release the read transaction so TransactionClassifier's writes aren't blocked by a
-        // dangling shared lock on this connection.
-        connection.rollback();
     }
 
     @Override
     public void invoke(ClassifiedTransaction txn, Context context) throws Exception {
         LOG.debug("Writing: date={} merchant={} amount={} category={} accountId={}",
                 txn.getDate(), txn.getMerchant(), txn.getAmount(), txn.getCategory(), txn.getAccountId());
-        insertStmt.setString(1, txn.getDate());
+        insertStmt.setDate(1, java.sql.Date.valueOf(txn.getDate()));
         insertStmt.setString(2, txn.getMerchant());
         insertStmt.setDouble(3, Double.parseDouble(txn.getAmount()));
         insertStmt.setString(4, txn.getCategory());
@@ -67,7 +68,7 @@ public class SqliteSink extends RichSinkFunction<ClassifiedTransaction> {
         connection.commit();
         count++;
         if (count % 100 == 0) {
-            LOG.info("SqliteSink: {} transactions written this session", count);
+            LOG.info("PostgresSink: {} transactions written this session", count);
         }
     }
 
@@ -75,6 +76,6 @@ public class SqliteSink extends RichSinkFunction<ClassifiedTransaction> {
     public void close() throws Exception {
         if (insertStmt != null) insertStmt.close();
         if (connection != null) connection.close();
-        LOG.info("SqliteSink closed after writing {} transactions", count);
+        LOG.info("PostgresSink closed after writing {} transactions", count);
     }
 }
