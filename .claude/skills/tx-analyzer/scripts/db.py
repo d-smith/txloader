@@ -31,4 +31,8 @@ def get_conn(readonly: bool = False) -> psycopg.Connection:
     conn = psycopg.connect(_dsn, row_factory=psycopg.rows.dict_row)
     if readonly:
         conn.autocommit = True
+        # conn.read_only has no effect under autocommit (psycopg only applies it
+        # via the BEGIN statement, which autocommit skips) — set the session GUC
+        # directly so Postgres rejects writes on every statement.
+        conn.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
     return conn
