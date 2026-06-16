@@ -8,7 +8,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
 /**
  * Usage: FlinkProcessorApp [--nats-url <url>] [--subject <subject>] [--stream <name>]
- *                          [--consumer <name>] [--db <path>] [--web-port <port>]
+ *                          [--consumer <name>] [--db-url <jdbc-url>] [--web-port <port>]
  *                          [--classifier keyword] [--rules <path>]
  *
  * Defaults:
@@ -16,7 +16,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
  *   --subject     txns.raw
  *   --stream      TRANSACTIONS
  *   --consumer    flink-processor
- *   --db          transactions.db
+ *   --db-url      jdbc:postgresql://localhost:5432/txloader
  *   --web-port    8081
  *   --classifier  keyword
  *   --rules       (built-in category_rules.csv, applies to keyword classifier only)
@@ -28,7 +28,9 @@ public class FlinkProcessorApp {
         String subject    = "txns.raw";
         String streamName = "TRANSACTIONS";
         String consumer   = "flink-processor";
-        String dbPath     = "transactions.db";
+        String dbUrl      = "jdbc:postgresql://localhost:5432/txloader";
+        String dbUser     = System.getenv("DB_USER");
+        String dbPassword = System.getenv("DB_PASSWORD");
         String classifier = "keyword";
         String rulesPath  = null;
         int    webPort    = 8081;
@@ -39,7 +41,7 @@ public class FlinkProcessorApp {
                 case "--subject"     -> subject    = args[++i];
                 case "--stream"      -> streamName = args[++i];
                 case "--consumer"    -> consumer   = args[++i];
-                case "--db"          -> dbPath      = args[++i];
+                case "--db-url"      -> dbUrl       = args[++i];
                 case "--classifier"  -> classifier  = args[++i];
                 case "--rules"       -> rulesPath   = args[++i];
                 case "--web-port"    -> webPort     = Integer.parseInt(args[++i]);
@@ -60,8 +62,8 @@ public class FlinkProcessorApp {
 
         env.addSource(new NatsTransactionSource(natsConfig))
            .map(new TransactionNormalizer())
-           .map(new TransactionClassifier(dbPath, categorizer))
-           .addSink(new SqliteSink(dbPath));
+           .map(new TransactionClassifier(dbUrl, dbUser, dbPassword, categorizer))
+           .addSink(new PostgresSink(dbUrl, dbUser, dbPassword));
 
         env.execute("TX Loader Flink Processor");
     }
