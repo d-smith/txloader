@@ -83,9 +83,11 @@ This starts a PostgreSQL 16 container with:
 - Host: `localhost`, Port: `5432`
 - Database: `txloader`, User: `myuser`, Password: `mypassword`
 
-Initialize the schema:
+Set the required environment variables and apply the schema:
 ```bash
-docker exec -i postgres-dev psql -U myuser -d txloader < scripts/schema.sql
+export DB_USER=myuser
+export DB_PASSWORD=mypassword
+mvn liquibase:update -N
 ```
 
 **macOS**
@@ -107,13 +109,17 @@ createdb txloader
 
 ### Database Schema
 
-Initialize the schema before running the processor for the first time:
+Apply the schema before running the processor for the first time:
 
 ```bash
-psql txloader < scripts/schema.sql
+export DB_USER=myuser
+export DB_PASSWORD=mypassword
+mvn liquibase:update -N
 ```
 
-This is safe to re-run — tables use `IF NOT EXISTS` and views use `CREATE OR REPLACE`.
+This is safe to re-run — Liquibase tracks applied changesets and skips them on subsequent runs.
+
+To add schema changes in the future, create a new numbered SQL file under `db/changelog/changes/` and add a corresponding `<include>` entry in `db/changelog/db.changelog-master.xml`.
 
 **`accounts`** — one row per bank/card account
 

@@ -1,9 +1,13 @@
+-- liquibase formatted sql
+
+-- changeset txloader:1
 CREATE TABLE IF NOT EXISTS accounts (
     id   SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     type TEXT NOT NULL
 );
 
+-- changeset txloader:2
 CREATE TABLE IF NOT EXISTS transactions (
     id         SERIAL PRIMARY KEY,
     date       DATE NOT NULL,
@@ -14,6 +18,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     raw_desc   TEXT
 );
 
+-- changeset txloader:3 runOnChange:true
 CREATE OR REPLACE VIEW monthly_summary AS
     SELECT
         TO_CHAR(date, 'YYYY-MM')  AS month,
@@ -24,7 +29,7 @@ CREATE OR REPLACE VIEW monthly_summary AS
     GROUP BY 1
     ORDER BY 1 DESC;
 
-
+-- changeset txloader:4 runOnChange:true
 CREATE OR REPLACE VIEW category_summary AS
     SELECT
         category,
