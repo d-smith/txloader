@@ -22,6 +22,9 @@ public class ClassifiedTransaction {
     @JsonProperty("category")
     private String category;
 
+    @JsonProperty("subcategory")
+    private String subcategory;
+
     @JsonProperty("account_id")
     private int accountId;
 

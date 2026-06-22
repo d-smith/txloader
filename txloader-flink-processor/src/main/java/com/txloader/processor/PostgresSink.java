@@ -15,8 +15,8 @@ public class PostgresSink extends RichSinkFunction<ClassifiedTransaction> {
     private static final Logger LOG = LoggerFactory.getLogger(PostgresSink.class);
 
     private static final String INSERT_SQL =
-            "INSERT INTO transactions (date, merchant, amount, category, account_id, raw_desc) " +
-            "VALUES (?, ?, ?, ?, ?, ?)";
+            "INSERT INTO transactions (date, merchant, amount, category, subcategory, account_id, raw_desc) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
     private final String dbUrl;
     private final String dbUser;
@@ -56,14 +56,16 @@ public class PostgresSink extends RichSinkFunction<ClassifiedTransaction> {
 
     @Override
     public void invoke(ClassifiedTransaction txn, Context context) throws Exception {
-        LOG.debug("Writing: date={} merchant={} amount={} category={} accountId={}",
-                txn.getDate(), txn.getMerchant(), txn.getAmount(), txn.getCategory(), txn.getAccountId());
+        LOG.debug("Writing: date={} merchant={} amount={} category={} subcategory={} accountId={}",
+                txn.getDate(), txn.getMerchant(), txn.getAmount(),
+                txn.getCategory(), txn.getSubcategory(), txn.getAccountId());
         insertStmt.setDate(1, java.sql.Date.valueOf(txn.getDate()));
         insertStmt.setString(2, txn.getMerchant());
         insertStmt.setDouble(3, Double.parseDouble(txn.getAmount()));
         insertStmt.setString(4, txn.getCategory());
-        insertStmt.setInt(5, txn.getAccountId());
-        insertStmt.setString(6, txn.getRawDesc());
+        insertStmt.setString(5, txn.getSubcategory());
+        insertStmt.setInt(6, txn.getAccountId());
+        insertStmt.setString(7, txn.getRawDesc());
         insertStmt.executeUpdate();
         connection.commit();
         count++;

@@ -4,7 +4,7 @@ public interface MerchantCategorizer extends java.io.Serializable {
 
     default void open() throws Exception {}
 
-    String categorize(String merchant);
+    CategoryResult categorize(String merchant);
 
     default void close() throws Exception {}
 }
