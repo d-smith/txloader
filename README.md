@@ -83,8 +83,10 @@ This starts a PostgreSQL 16 container with:
 - Host: `localhost`, Port: `5432`
 - Database: `txloader`, User: `myuser`, Password: `mypassword`
 
-Apply the schema:
+Set the required environment variables and apply the schema:
 ```bash
+export DB_USER=myuser
+export DB_PASSWORD=mypassword
 mvn liquibase:update -N
 ```
 
@@ -110,6 +112,8 @@ createdb txloader
 Apply the schema before running the processor for the first time:
 
 ```bash
+export DB_USER=myuser
+export DB_PASSWORD=mypassword
 mvn liquibase:update -N
 ```
 
