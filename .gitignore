@@ -40,3 +40,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local environment — credentials, never commit
+.env

@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:2.10
+    container_name: nats-dev
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - txloader-net
+
+  processor:
+    build:
+      context: ./txloader-flink-processor
+    container_name: flink-processor
+    environment:
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    command:
+      - "--nats-url"
+      - "nats://nats:4222"
+      - "--db-url"
+      - "jdbc:postgresql://db:5432/txloader"
+    ports:
+      - "8081:8081"
+    depends_on:
+      - nats
+    networks:
+      - txloader-net
+
+networks:
+  txloader-net:
+    external: true
+    name: txloader-net
