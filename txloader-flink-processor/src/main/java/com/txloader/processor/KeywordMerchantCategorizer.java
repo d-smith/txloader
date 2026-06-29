@@ -9,6 +9,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 public class KeywordMerchantCategorizer implements MerchantCategorizer {
 
@@ -50,13 +51,13 @@ public class KeywordMerchantCategorizer implements MerchantCategorizer {
     }
 
     @Override
-    public String categorize(String merchant) {
+    public CategoryResult categorize(String merchant) {
         for (Map.Entry<String, String> rule : categoryRules.entrySet()) {
             if (merchant.contains(rule.getKey())) {
-                return rule.getValue();
+                return CategoryResult.of(rule.getValue());
             }
         }
         LOG.warn("No category rule matched merchant '{}'", merchant);
-        return "Uncategorized";
+        return CategoryResult.empty();
     }
 }

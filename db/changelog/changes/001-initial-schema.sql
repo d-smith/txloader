@@ -41,3 +41,6 @@ CREATE OR REPLACE VIEW category_summary AS
     WHERE amount < 0
     GROUP BY 1, 2
     ORDER BY 2 ASC, 3 ASC;
+
+-- changeset txloader:5
+ALTER TABLE transactions ADD COLUMN subcategory TEXT;

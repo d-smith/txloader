@@ -13,10 +13,9 @@ Loads bank/card transactions into a local PostgreSQL database using a stream arc
 
 | Requirement | Notes |
 |-------------|-------|
-| Java 17+ | Required to run the JARs |
+| Java 17+ | Required to build and run locally |
 | Maven 3.8+ | Required to build from source |
-| NATS Server 2.x | Must be running before either app starts |
-| PostgreSQL 14+ | Must be running; create a `txloader` database before first use |
+| Docker + Docker Compose | Required for the containerized startup path |
 | psql (optional) | Only needed to inspect the database directly |
 | NATS CLI (optional) | Only needed to inspect stream state |
 
@@ -31,89 +30,43 @@ mvn package
 ```
 
 Produces two fat JARs:
-- `txloader-csv-producer/target/txloader-csv-producer-1.0-SNAPSHOT.jar`
-- `txloader-flink-processor/target/txloader-flink-processor-1.0-SNAPSHOT.jar`
+- `txloader-csv-producer/target/txloader-csv-producer.jar`
+- `txloader-flink-processor/target/txloader-flink-processor.jar`
 
 ---
 
 ## Infrastructure Setup
 
-### NATS Server
+Two Docker Compose files manage the infrastructure:
 
-**macOS**
-```bash
-brew install nats-server
-```
+| File | Services |
+|------|----------|
+| `docker-compose.yaml` | PostgreSQL |
+| `docker-compose-processor.yaml` | NATS, Flink processor |
 
-**Linux**
-```bash
-curl -fsSL https://binaries.nats.dev/nats-io/nats-server/v2@latest | sh
-sudo mv nats-server /usr/local/bin/
-```
+### Credentials
 
-Start with JetStream enabled:
-```bash
-nats-server -js
-```
-
-To persist messages across restarts:
-```bash
-nats-server -js -sd /tmp/nats-data
-```
-
-The TRANSACTIONS stream and consumer are created automatically on first run — no manual stream configuration needed.
-
-### NATS CLI (optional)
+Copy your credentials into a `.env` file in the project root before starting anything. Docker Compose loads this file automatically.
 
 ```bash
-# macOS
-brew install nats-io/nats-tools/nats
-
-# Linux — download from https://github.com/nats-io/natscli/releases
+cat .env
+```
+```dotenv
+DB_USER=myuser
+DB_PASSWORD=mypassword
 ```
 
-### PostgreSQL
+### Start PostgreSQL
 
-**Docker (recommended)**
 ```bash
 docker compose up -d
 ```
 
-This starts a PostgreSQL 16 container with:
-- Host: `localhost`, Port: `5432`
-- Database: `txloader`, User: `myuser`, Password: `mypassword`
+Starts a PostgreSQL 16 container on `localhost:5432`, database `txloader`. Also creates the shared `txloader-net` Docker network used by both compose files.
 
-Set the required environment variables and apply the schema:
-```bash
-export DB_USER=myuser
-export DB_PASSWORD=mypassword
-mvn liquibase:update -N
-```
-
-**macOS**
-```bash
-brew install postgresql
-brew services start postgresql
-```
-
-**Ubuntu / Debian**
-```bash
-sudo apt install postgresql
-sudo systemctl start postgresql
-```
-
-Create the database:
-```bash
-createdb txloader
-```
-
-### Database Schema
-
-Apply the schema before running the processor for the first time:
+### Apply the Database Schema
 
 ```bash
-export DB_USER=myuser
-export DB_PASSWORD=mypassword
 mvn liquibase:update -N
 ```
 
@@ -131,45 +84,94 @@ To add schema changes in the future, create a new numbered SQL file under `db/ch
 
 **`transactions`** — one row per transaction
 
-| column     | type          | notes                                                      |
-|------------|---------------|------------------------------------------------------------|
-| id         | SERIAL        | PK                                                         |
-| date       | DATE          | ISO format YYYY-MM-DD                                      |
-| merchant   | TEXT          | cleaned merchant name                                      |
-| amount     | NUMERIC(15,2) | negative = money out (spend), positive = refund/credit     |
-| category   | TEXT          | assigned by classifier                                     |
-| account_id | INTEGER       | FK → accounts.id                                          |
-| raw_desc   | TEXT          | original CSV description before normalization              |
+| column      | type          | notes                                                      |
+|-------------|---------------|------------------------------------------------------------|
+| id          | SERIAL        | PK                                                         |
+| date        | DATE          | ISO format YYYY-MM-DD                                      |
+| merchant    | TEXT          | cleaned merchant name                                      |
+| amount      | NUMERIC(15,2) | negative = money out (spend), positive = refund/credit     |
+| category    | TEXT          | assigned by classifier                                     |
+| subcategory | TEXT          | assigned by classifier                                     |
+| account_id  | INTEGER       | FK → accounts.id                                          |
+| raw_desc    | TEXT          | original CSV description before normalization              |
 
 ---
 
 ## Running
 
-Start components in this order:
+### Option 1: Docker (recommended)
 
-**1. NATS server**
+**1. Build the fat JAR** (required before the first build and after any code change):
 ```bash
-nats-server -js
+mvn -pl txloader-flink-processor -am package -DskipTests
 ```
 
-**2. Flink processor** — start before the producer so no messages are missed
+**2. Start PostgreSQL** (if not already running):
 ```bash
-java -jar txloader-flink-processor/target/txloader-flink-processor-1.0-SNAPSHOT.jar \
-  --db-url jdbc:postgresql://localhost:5432/txloader
+docker compose up -d
 ```
+
+**3. Start NATS and the Flink processor:**
+```bash
+docker compose -f docker-compose-processor.yaml up -d --build
+```
+
+The `--build` flag rebuilds the processor image from the current JAR, so steps 1 and 3 are the only two commands needed after a code change.
 
 The Flink web UI is available at **http://localhost:8081** once the processor starts.
 
-**3. CSV producer** — `--account` is required
+**4. Run the CSV producer** — `--account` is required:
 ```bash
-java -jar txloader-csv-producer/target/txloader-csv-producer-1.0-SNAPSHOT.jar \
+java -jar txloader-csv-producer/target/txloader-csv-producer.jar \
+  --account "Chase Checking" \
+  transactions.csv
+```
+
+**Teardown** (reverse order):
+```bash
+docker compose -f docker-compose-processor.yaml down
+docker compose down
+```
+
+---
+
+### Option 2: Run locally
+
+**1. Start NATS with JetStream enabled:**
+
+```bash
+# macOS
+brew install nats-server && nats-server -js
+
+# Linux
+curl -fsSL https://binaries.nats.dev/nats-io/nats-server/v2@latest | sh
+sudo mv nats-server /usr/local/bin/
+nats-server -js
+```
+
+To persist messages across restarts:
+```bash
+nats-server -js -sd /tmp/nats-data
+```
+
+**2. Start the Flink processor** — start before the producer so no messages are missed:
+```bash
+export DB_USER=myuser
+export DB_PASSWORD=mypassword
+java -jar txloader-flink-processor/target/txloader-flink-processor.jar \
+  --db-url jdbc:postgresql://localhost:5432/txloader
+```
+
+**3. Run the CSV producer:**
+```bash
+java -jar txloader-csv-producer/target/txloader-csv-producer.jar \
   --account "Chase Checking" \
   transactions.csv
 ```
 
 Multiple CSV files can be passed in one invocation:
 ```bash
-java -jar txloader-csv-producer/target/txloader-csv-producer-1.0-SNAPSHOT.jar \
+java -jar txloader-csv-producer/target/txloader-csv-producer.jar \
   --account "Amex Gold" \
   jan.csv feb.csv mar.csv
 ```
@@ -181,7 +183,7 @@ java -jar txloader-csv-producer/target/txloader-csv-producer-1.0-SNAPSHOT.jar \
 ### CSV Producer
 
 ```
-java -jar txloader-csv-producer-*.jar --account <name> <file> [<file> ...] [options]
+java -jar txloader-csv-producer.jar --account <name> <file> [<file> ...] [options]
 ```
 
 | Flag | Type | Default | Required | Description |
@@ -195,7 +197,7 @@ java -jar txloader-csv-producer-*.jar --account <name> <file> [<file> ...] [opti
 ### Flink Processor
 
 ```
-java -jar txloader-flink-processor-*.jar [options]
+java -jar txloader-flink-processor.jar [options]
 ```
 
 | Flag | Type | Default | Required | Description |
