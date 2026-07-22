@@ -15,8 +15,8 @@ public class PostgresSink extends RichSinkFunction<ClassifiedTransaction> {
     private static final Logger LOG = LoggerFactory.getLogger(PostgresSink.class);
 
     private static final String INSERT_SQL =
-            "INSERT INTO transactions (date, merchant, amount, category, subcategory, account_id, raw_desc) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?)";
+            "INSERT INTO transactions (date, merchant, amount, category, subcategory, account_id, raw_desc, " +
+            "confidence, category_confidence, subcategory_confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private final String dbUrl;
     private final String dbUser;
@@ -66,11 +66,22 @@ public class PostgresSink extends RichSinkFunction<ClassifiedTransaction> {
         insertStmt.setString(5, txn.getSubcategory());
         insertStmt.setInt(6, txn.getAccountId());
         insertStmt.setString(7, txn.getRawDesc());
+        setNullableDouble(insertStmt, 8, txn.getConfidence());
+        setNullableDouble(insertStmt, 9, txn.getCategoryConfidence());
+        setNullableDouble(insertStmt, 10, txn.getSubcategoryConfidence());
         insertStmt.executeUpdate();
         connection.commit();
         count++;
         if (count % 100 == 0) {
             LOG.info("PostgresSink: {} transactions written this session", count);
+        }
+    }
+
+    private void setNullableDouble(PreparedStatement stmt, int idx, Double value) throws java.sql.SQLException {
+        if (value == null) {
+            stmt.setNull(idx, java.sql.Types.NUMERIC);
+        } else {
+            stmt.setDouble(idx, value);
         }
     }
 

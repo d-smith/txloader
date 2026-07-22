@@ -30,4 +30,13 @@ public class ClassifiedTransaction {
 
     @JsonProperty("raw_desc")
     private String rawDesc;
+
+    @JsonProperty("confidence")
+    private Double confidence;
+
+    @JsonProperty("category_confidence")
+    private Double categoryConfidence;
+
+    @JsonProperty("subcategory_confidence")
+    private Double subcategoryConfidence;
 }

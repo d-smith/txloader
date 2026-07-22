@@ -94,6 +94,9 @@ To add schema changes in the future, create a new numbered SQL file under `db/ch
 | subcategory | TEXT          | assigned by classifier                                     |
 | account_id  | INTEGER       | FK → accounts.id                                          |
 | raw_desc    | TEXT          | original CSV description before normalization              |
+| confidence  | NUMERIC(5,4)  | overall classifier confidence (`http` classifier only, NULL otherwise) |
+| category_confidence | NUMERIC(5,4) | classifier confidence for category (`http` classifier only, NULL otherwise) |
+| subcategory_confidence | NUMERIC(5,4) | classifier confidence for subcategory (`http` classifier only, NULL otherwise) |
 
 ---
 
@@ -132,6 +135,8 @@ java -jar txloader-csv-producer/target/txloader-csv-producer.jar \
 docker compose -f docker-compose-processor.yaml down
 docker compose down
 ```
+
+**Using the HTTP classifier**: to classify transactions via an external Transaction Classifier API instead of the built-in keyword rules, swap the `command:` block for the `processor` service in `docker-compose-processor.yaml` for the commented-out `--classifier http` variant (see the file). If the classifier API runs on the host machine, use `http://host.docker.internal:8000` as `--classifier-url` — the compose file already adds the `extra_hosts` entry needed for the container to resolve it.
 
 ---
 
@@ -208,5 +213,6 @@ java -jar txloader-flink-processor.jar [options]
 | `--stream` | String | `TRANSACTIONS` | No | JetStream stream name |
 | `--consumer` | String | `flink-processor` | No | JetStream consumer/durable name |
 | `--web-port` | Integer | `8081` | No | Port for the embedded Flink web UI |
-| `--classifier` | String | `keyword` | No | Merchant categorization algorithm (`keyword` is the only supported value) |
-| `--rules` | String | built-in CSV | No | Path to a custom categorization rules CSV (keyword classifier only) |
+| `--classifier` | String | `keyword` | No | Merchant categorization algorithm (`keyword` or `http`) |
+| `--rules` | String | built-in CSV | No | Path to a custom categorization rules CSV (`keyword` classifier only) |
+| `--classifier-url` | String | — | Only if `--classifier http` | Base URL of the Transaction Classifier API, e.g. `http://localhost:8000` |
