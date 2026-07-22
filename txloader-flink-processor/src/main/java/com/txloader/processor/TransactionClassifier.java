@@ -58,14 +58,18 @@ public class TransactionClassifier extends RichMapFunction<String[], ClassifiedT
         String rawDesc     = fields[3];
         String accountCode = fields[4];
 
-        CategoryResult categoryResult = categorizer.categorize(merchant);
+        CategoryResult categoryResult = categorizer.categorize(isoDate, merchant, amount, rawDesc);
         String category              = categoryResult.category().orElse("Uncategorized");
         String subcategory           = categoryResult.subcategory().orElse("Uncategorized");
+        Double confidence            = categoryResult.confidence().orElse(null);
+        Double categoryConfidence    = categoryResult.categoryConfidence().orElse(null);
+        Double subcategoryConfidence = categoryResult.subcategoryConfidence().orElse(null);
         int accountId                = resolveAccountId(accountCode);
 
         LOG.debug("Classified: merchant='{}' -> category='{}', subcategory='{}', account='{}' -> accountId={}",
                 merchant, category, subcategory, accountCode, accountId);
-        return new ClassifiedTransaction(isoDate, merchant, amount, category, subcategory, accountId, rawDesc);
+        return new ClassifiedTransaction(isoDate, merchant, amount, category, subcategory, accountId, rawDesc,
+                confidence, categoryConfidence, subcategoryConfidence);
     }
 
     private int resolveAccountId(String accountCode) throws Exception {

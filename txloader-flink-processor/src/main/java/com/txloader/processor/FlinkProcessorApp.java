@@ -9,17 +9,18 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 /**
  * Usage: FlinkProcessorApp [--nats-url <url>] [--subject <subject>] [--stream <name>]
  *                          [--consumer <name>] [--db-url <jdbc-url>] [--web-port <port>]
- *                          [--classifier keyword] [--rules <path>]
+ *                          [--classifier keyword|http] [--rules <path>] [--classifier-url <url>]
  *
  * Defaults:
- *   --nats-url    nats://localhost:4222
- *   --subject     txns.raw
- *   --stream      TRANSACTIONS
- *   --consumer    flink-processor
- *   --db-url      jdbc:postgresql://localhost:5432/txloader
- *   --web-port    8081
- *   --classifier  keyword
- *   --rules       (built-in category_rules.csv, applies to keyword classifier only)
+ *   --nats-url        nats://localhost:4222
+ *   --subject         txns.raw
+ *   --stream          TRANSACTIONS
+ *   --consumer        flink-processor
+ *   --db-url          jdbc:postgresql://localhost:5432/txloader
+ *   --web-port        8081
+ *   --classifier      keyword
+ *   --rules           (built-in category_rules.csv, applies to keyword classifier only)
+ *   --classifier-url  (required when --classifier http, e.g. http://localhost:8000)
  */
 public class FlinkProcessorApp {
 
@@ -31,25 +32,28 @@ public class FlinkProcessorApp {
         String dbUrl      = "jdbc:postgresql://localhost:5432/txloader";
         String dbUser     = System.getenv("DB_USER");
         String dbPassword = System.getenv("DB_PASSWORD");
-        String classifier = "keyword";
-        String rulesPath  = null;
-        int    webPort    = 8081;
+        String classifier    = "keyword";
+        String rulesPath     = null;
+        String classifierUrl = null;
+        int    webPort       = 8081;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
-                case "--nats-url"    -> natsUrl    = args[++i];
-                case "--subject"     -> subject    = args[++i];
-                case "--stream"      -> streamName = args[++i];
-                case "--consumer"    -> consumer   = args[++i];
-                case "--db-url"      -> dbUrl       = args[++i];
-                case "--classifier"  -> classifier  = args[++i];
-                case "--rules"       -> rulesPath   = args[++i];
-                case "--web-port"    -> webPort     = Integer.parseInt(args[++i]);
+                case "--nats-url"       -> natsUrl       = args[++i];
+                case "--subject"        -> subject       = args[++i];
+                case "--stream"         -> streamName    = args[++i];
+                case "--consumer"       -> consumer      = args[++i];
+                case "--db-url"         -> dbUrl         = args[++i];
+                case "--classifier"     -> classifier    = args[++i];
+                case "--rules"          -> rulesPath     = args[++i];
+                case "--classifier-url" -> classifierUrl = args[++i];
+                case "--web-port"       -> webPort       = Integer.parseInt(args[++i]);
             }
         }
 
         MerchantCategorizer categorizer = switch (classifier) {
             case "keyword" -> new KeywordMerchantCategorizer(rulesPath);
+            case "http"    -> new HttpMerchantCategorizer(classifierUrl);
             default -> throw new IllegalArgumentException("Unknown classifier: " + classifier);
         };
 

@@ -51,7 +51,7 @@ public class KeywordMerchantCategorizer implements MerchantCategorizer {
     }
 
     @Override
-    public CategoryResult categorize(String merchant) {
+    public CategoryResult categorize(String isoDate, String merchant, String amount, String rawDesc) {
         for (Map.Entry<String, String> rule : categoryRules.entrySet()) {
             if (merchant.contains(rule.getKey())) {
                 return CategoryResult.of(rule.getValue());

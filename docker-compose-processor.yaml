@@ -18,11 +18,26 @@ services:
     environment:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+    # extra_hosts lets the container reach a classifier API running on the host
+    # (needed only if you switch to the --classifier http command below)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    #command:
+    # Default command uses keyword classifier
+    #  - "--nats-url"
+    #  - "nats://nats:4222"
+    #  - "--db-url"
+    #  - "jdbc:postgresql://db:5432/txloader"
+    # To use the HTTP classifier instead of keyword matching, replace `command:` above with:
     command:
       - "--nats-url"
       - "nats://nats:4222"
       - "--db-url"
       - "jdbc:postgresql://db:5432/txloader"
+      - "--classifier"
+      - "http"
+      - "--classifier-url"
+      - "http://host.docker.internal:8000"
     ports:
       - "8081:8081"
     depends_on:
